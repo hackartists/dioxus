@@ -49,6 +49,7 @@ web = ["dioxus-web", "dioxus-fullstack?/web", "dioxus-config-macro/web", "dioxus
 ssr = ["dioxus-ssr", "dioxus-router?/ssr", "dioxus-config-macro/ssr"]
 liveview = ["dioxus-liveview", "dioxus-config-macro/liveview", "dioxus-router?/liveview"]
 axum = ["dioxus-fullstack?/axum", "dioxus-fullstack?/server", "ssr", "dioxus-liveview?/axum"]
+lambda = ["dioxus-fullstack?/lambda"]
 
 # This feature just disables the no-renderer-enabled warning
 third-party-renderer = []

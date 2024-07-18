@@ -10,7 +10,7 @@ mod html_storage;
 
 #[cfg_attr(docsrs, doc(cfg(feature = "axum")))]
 #[cfg(feature = "axum")]
-pub mod axum_adapter;
+mod axum_adapter;
 
 mod config;
 mod hooks;

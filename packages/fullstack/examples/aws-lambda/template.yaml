@@ -1,0 +1,34 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 128
+
+  Api:
+    Cors:
+      AllowMethods: "'GET,POST,DELETE,PUT,OPTIONS'"
+      AllowHeaders: "'*'"
+      AllowOrigin: "'*'"
+      AllowCredentials: "'*'"
+
+Resources:
+  Function:
+    Type: AWS::Serverless::Function
+
+    Metadata:
+      BuildMethod: makefile
+
+    Properties:
+      CodeUri: ./
+      Handler: bootstrap
+      Runtime: provided.al2023
+      Architectures:
+        - x86_64
+      Events:
+        V1:
+          Type: Api
+          Properties:
+            Path: "/{v1+}"
+            Method: ANY

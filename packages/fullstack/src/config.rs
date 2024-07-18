@@ -117,8 +117,6 @@ impl Config {
         self,
         build_virtual_dom: impl Fn() -> VirtualDom + Send + Sync + 'static,
     ) {
-        let addr = self.addr;
-        println!("Listening on {}", addr);
         let cfg = self.server_cfg.build();
         let server_fn_route = self.server_fn_route;
 
@@ -140,9 +138,20 @@ impl Config {
                     Arc::new(build_virtual_dom),
                     ssr_state,
                 )));
-            let router = router.into_make_service();
-            let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-            axum::serve(listener, router).await.unwrap();
+            #[cfg(feature = "lambda")]
+            {
+                println!("Running AWS Lambda");
+                lambda_http::run(router).await.unwrap;
+            }
+            #[cfg(not(feature = "lambda"))]
+            {
+                let addr = self.addr;
+                println!("Listening on {}", addr);
+
+                let router = router.into_make_service();
+                let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+                axum::serve(listener, router).await.unwrap();
+            }
         }
     }
 }
