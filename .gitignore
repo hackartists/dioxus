@@ -22,3 +22,4 @@ node_modules/
 /test-results/
 /packages/playwright-report/
 /packages/playwright/.cache/
+/packages/fullstack/examples/aws-lambda/.aws-sam/

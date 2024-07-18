@@ -71,7 +71,11 @@ impl<T: 'static> Memo<T> {
             dirty,
             callback: recompute,
         });
+        #[cfg(debug_assertions)]
         let state: Signal<T> = Signal::new_with_caller(value, location);
+        #[cfg(not(debug_assertions))]
+        let state: Signal<T> = Signal::new_with_caller(value);
+
 
         let memo = Memo {
             inner: state,

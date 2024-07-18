@@ -117,8 +117,6 @@ impl Config {
         self,
         build_virtual_dom: impl Fn() -> VirtualDom + Send + Sync + 'static,
     ) {
-        let addr = self.addr;
-        println!("Listening on {}", addr);
         let cfg = self.server_cfg.build();
         let server_fn_route = self.server_fn_route;
 
@@ -140,9 +138,89 @@ impl Config {
                     Arc::new(build_virtual_dom),
                     ssr_state,
                 )));
-            let router = router.into_make_service();
-            let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-            axum::serve(listener, router).await.unwrap();
+            #[cfg(feature = "lambda")]
+            {
+                println!("Running in AWS Lambda");
+                // lambda_http::run(router).await.unwrap();
+                lambda_runtime::run(LambdaAdapter::from(router)).await.unwrap();
+            }
+            #[cfg(not(feature = "lambda"))]
+            {
+                let addr = self.addr;
+                println!("Listening on {}", addr);
+                let router = router.into_make_service();
+                let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+                axum::serve(listener, router).await.unwrap();
+            }
         }
+    }
+}
+
+
+#[cfg(feature = "lambda")]
+#[allow(missing_docs)]
+pub struct LambdaAdapter<'a, R, S> {
+    service: S,
+    _phantom_data: std::marker::PhantomData<&'a R>,
+
+}
+
+
+#[cfg(feature = "lambda")]
+impl<'a, R, S, E> From<S> for LambdaAdapter<'a, R, S>
+where
+    S: tower::Service<lambda_http::Request, Response = R, Error = E>,
+    S::Future: Send + 'a,
+    R: lambda_http::IntoResponse,
+{
+    fn from(service: S) -> Self {
+        LambdaAdapter {
+            service,
+            _phantom_data: std::marker::PhantomData,
+        }
+    }
+}
+
+#[cfg(feature = "lambda")]
+impl<'a, R, S, E> tower::Service<lambda_http::LambdaEvent<lambda_http::request::LambdaRequest>> for LambdaAdapter<'a, R, S>
+where
+    S: tower::Service<lambda_http::Request, Response = R, Error = E>,
+    S::Future: Send + 'a,
+    R: lambda_http::IntoResponse,
+
+{
+    type Response = lambda_http::aws_lambda_events::apigw::ApiGatewayProxyResponse;
+
+    type Error = E;
+    type Future = std::pin::Pin<Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send + 'a>>;
+
+    fn poll_ready(&mut self, cx: &mut core::task::Context<'_>) -> core::task::Poll<Result<(), Self::Error>> {
+        self.service.poll_ready(cx)
+    }
+
+    fn call(&mut self, req: lambda_http::LambdaEvent<lambda_http::request::LambdaRequest>) -> Self::Future {
+        let request_origin = req.payload.request_origin();
+        std::env::set_var("AWS_LAMBDA_HTTP_IGNORE_STAGE_IN_PATH","true");
+        let event: lambda_http::Request = req.payload.into();
+
+        let call = self.service.call(lambda_http::RequestExt::with_lambda_context(event, req.context));
+
+        Box::pin(async move {
+            let res = call.await?;
+            let res = res.into_response().await;
+            let status_code = res.status().as_u16() as i64;
+            let headers = res.headers().clone();
+            let body = Some(res.clone().into_body());
+
+            let res = lambda_http::aws_lambda_events::apigw::ApiGatewayProxyResponse {
+                is_base64_encoded: false,
+                status_code,
+                headers,
+                body,
+                multi_value_headers: Default::default(),
+            };
+
+            Ok(res)
+        })
     }
 }
