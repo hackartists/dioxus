@@ -126,6 +126,7 @@ where
     });
 
     // Suspend if the value isn't ready
+    #[cfg(feature = "server")]
     if resource.state().cloned() == UseResourceState::Pending {
         let task = resource.task();
         if !task.paused() {
